@@ -19,19 +19,19 @@ def get_data():
     b_bid = b.bids
     return a_ask, b_ask, a_bid, b_bid
 
+import tf
 trades = dict()
 i = -1
 
 while True:
-    time.sleep(0.1)
     a_ask, b_ask, a_bid, b_bid = get_data()
+
     try:
         bid, ask = tf.bid_ask(a_ask, b_ask, a_bid, b_bid)
     except:
         continue
     
     buy_a = tf.buy_side(ask, a_ask, b_ask)
-
 
     if tf.is_opportunity(ask, bid):
         volume = min(ask.volume, bid.volume)
@@ -48,30 +48,34 @@ while True:
                     if trade[0].volume < volume:
                         volume = trade[0].volume
                     e.insert_order('PHILIPS_A', price=ask.price, volume=volume, side='bid', order_type='ioc')
-                    trades[i] = (buy_a, volume, diff)
-                    print(e.get_positions())
+                    trades[i] = [buy_a, volume, diff]
+                    time.sleep(0.1)
+                    print(f'Traded {e.get_positions()}')
         if not buy_a:
             volume = tf.check_volume(volume, 'PHILIPS_B', positions)
             if volume > 0:
                 e.insert_order('PHILIPS_B', price=ask.price, volume=volume, side='bid', order_type='ioc')
-                trade = e.poll_new_trades('PHILIPS_A')
+                trade = e.poll_new_trades('PHILIPS_B')
                 if trade:
                     if trade[0].volume < volume:
                         volume = trade[0].volume
                     e.insert_order('PHILIPS_A', price=bid.price, volume=volume, side='ask', order_type='ioc')
-                    trades[i] = (buy_a, volume, diff)
-                    print(e.get_positions())
-        
+                    trades[i] = [buy_a, volume, diff]
+                    time.sleep(0.1)
+                    print(f'Traded {e.get_positions()}')
     else:
         d = trades.copy()
         for t in d:
-            positions = e.get_positions() 
+            positions = e.get_positions()
             a_ask, b_ask, a_bid, b_bid = get_data()
             volume = d[t][1]
             if not d[t][0]:
-                ask_price = min(a_ask, key=tf.f).price
-                bid_price = max(b_ask, key=tf.f).price
-                diff_now = abs(ask_price - bid_price)
+                try:
+                    ask_price = min(a_ask, key=tf.f).price
+                    bid_price = max(b_ask, key=tf.f).price
+                    diff_now = abs(ask_price - bid_price)
+                except:
+                    continue
                 if diff_now < d[t][2]:
                     volume = tf.check_volume(volume, 'PHILIPS_A', positions)
                     if volume > 0:
@@ -81,12 +85,18 @@ while True:
                             if trade[0].volume < volume:
                                 volume = trade[0].volume
                             e.insert_order('PHILIPS_A', price=ask_price, volume=volume, side='bid', order_type='ioc')
-                            del trades[t]
-                            print("Cleared",e.get_positions())
+                            trades[t][1] = trades[t][1] - volume
+                            if trades[t][1] == 0:
+                                del trades[t]
+                            time.sleep(0.1)
+                            print(f'Cleared {e.get_positions()}')
             else:
-                ask_price = min(b_ask, key=tf.f).price
-                bid_price = max(a_bid, key=tf.f).price
-                diff_now = abs(ask_price - bid_price)
+                try:
+                    ask_price = min(b_ask, key=tf.f).price
+                    bid_price = max(a_bid, key=tf.f).price
+                    diff_now = abs(ask_price - bid_price)
+                except:
+                    continue
                 if diff_now < d[t][2]:
                     volume = tf.check_volume(volume, 'PHILIPS_B', positions)
                     if volume > 0:
@@ -96,7 +106,10 @@ while True:
                             if trade[0].volume < volume:
                                 volume = trade[0].volume
                             e.insert_order('PHILIPS_A', price=bid_price, volume=volume, side='ask', order_type='ioc')
-                            del trades[t]
-                            print("Cleared", e.get_positions())
-        
-    
+                            trades[t][1] = trades[t][1] - volume
+                            if trades[t][1] == 0:
+                                del trades[t]
+                            print(f'Cleared {e.get_positions()}')
+            time.sleep(0.1)
+
+
